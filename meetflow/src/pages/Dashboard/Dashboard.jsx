@@ -1,10 +1,251 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
+import {
+  createMeeting,
+  getMyMeetings,
+} from "../../services/meetingService";
+
 
 function Dashboard() {
+
+  const navigate = useNavigate();
+
+
+  // ==========================================
+  // STATE
+  // ==========================================
+
+  const [meetings, setMeetings] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+
+  const [meetingTitle, setMeetingTitle] = useState("");
+
+  const [showCreateMeeting, setShowCreateMeeting] = useState(false);
+
+  const [error, setError] = useState("");
+
+
+  // ==========================================
+  // GET USER
+  // ==========================================
+
+  const storedUser = localStorage.getItem("user");
+
+  let user = null;
+
+  try {
+    user = storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    user = null;
+  }
+
+  const userName = user?.name || "Krishit";
+
+  const firstLetter = userName.charAt(0).toUpperCase();
+
+
+  // ==========================================
+  // LOAD MEETINGS
+  // ==========================================
+
+  useEffect(() => {
+
+    const loadMeetings = async () => {
+
+      try {
+
+        setLoading(true);
+
+        setError("");
+
+        const data = await getMyMeetings();
+
+        setMeetings(data.meetings || []);
+
+      } catch (err) {
+
+        console.error("LOAD MEETINGS ERROR:", err);
+
+        setError(err.message);
+
+      } finally {
+
+        setLoading(false);
+
+      }
+
+    };
+
+
+    loadMeetings();
+
+  }, []);
+
+
+  // ==========================================
+  // CREATE MEETING
+  // ==========================================
+
+  const handleCreateMeeting = async (e) => {
+
+    e.preventDefault();
+
+
+    if (!meetingTitle.trim()) {
+
+      setError("Please enter a meeting title.");
+
+      return;
+
+    }
+
+
+    try {
+
+      setCreatingMeeting(true);
+
+      setError("");
+
+
+      const data = await createMeeting(
+        meetingTitle.trim()
+      );
+
+
+      console.log(
+        "REAL MEETING CREATED:",
+        data
+      );
+
+
+      const meetingCode =
+        data?.meeting?.meetingCode;
+
+
+      if (!meetingCode) {
+
+        throw new Error(
+          "Meeting was created but no meeting code was returned."
+        );
+
+      }
+
+
+      // Close popup
+      setShowCreateMeeting(false);
+
+      // Clear title
+      setMeetingTitle("");
+
+
+      // Go to real meeting
+      navigate(
+        `/meeting/${meetingCode}`
+      );
+
+
+    } catch (err) {
+
+      console.error(
+        "CREATE MEETING ERROR:",
+        err
+      );
+
+      setError(err.message);
+
+    } finally {
+
+      setCreatingMeeting(false);
+
+    }
+
+  };
+
+
+  // ==========================================
+  // JOIN MEETING
+  // ==========================================
+
+  const handleJoinMeeting = (meetingCode) => {
+
+    navigate(
+      `/meeting/${meetingCode}`
+    );
+
+  };
+
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const handleLogout = () => {
+
+    localStorage.removeItem("token");
+
+    localStorage.removeItem("user");
+
+    navigate("/login");
+
+  };
+
+
+  // ==========================================
+  // STATS
+  // ==========================================
+
+  const meetingsHosted = meetings.length;
+
+
+  const meetingsThisMonth =
+    meetings.filter((meeting) => {
+
+      if (!meeting.created_at) {
+        return false;
+      }
+
+      const date =
+        new Date(meeting.created_at);
+
+      const now =
+        new Date();
+
+      return (
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear()
+      );
+
+    }).length;
+
+
+  const peopleConnected =
+    meetings.reduce(
+      (total, meeting) =>
+        total +
+        Number(
+          meeting.participant_count || 0
+        ),
+      0
+    );
+
+
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
+
     <div className="min-h-screen bg-slate-950 text-white">
 
-      {/* Background */}
+
+      {/* ==========================================
+          BACKGROUND
+      ========================================== */}
+
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
 
         <div className="absolute left-10 top-20 h-64 w-64 rounded-full bg-indigo-600 opacity-10 blur-3xl" />
@@ -14,37 +255,47 @@ function Dashboard() {
       </div>
 
 
-      {/* ================= NAVBAR ================= */}
+      {/* ==========================================
+          NAVBAR
+      ========================================== */}
 
       <header className="relative z-20 border-b border-white/10 bg-slate-950">
 
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
 
-          {/* Logo */}
 
-          <Link to="/" className="flex items-center gap-3">
+          {/* LOGO */}
+
+          <Link
+            to="/"
+            className="flex items-center gap-3"
+          >
 
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold">
               M
             </div>
 
             <span className="text-xl font-bold">
-              Meet<span className="text-indigo-400">Flow</span>
+              Meet<span className="text-indigo-400">
+                Flow
+              </span>
             </span>
 
           </Link>
 
 
-          {/* Right side */}
+          {/* RIGHT SIDE */}
 
           <div className="flex items-center gap-4">
 
-            {/* Notification */}
+
+            {/* NOTIFICATION */}
 
             <button
               type="button"
               className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10"
             >
+
               🔔
 
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-indigo-500" />
@@ -52,21 +303,23 @@ function Dashboard() {
             </button>
 
 
-            {/* User */}
+            {/* USER */}
 
             <button
               type="button"
+              onClick={handleLogout}
+              title="Click to logout"
               className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10"
             >
 
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 font-bold">
-                K
+                {firstLetter}
               </div>
 
               <div className="hidden text-left sm:block">
 
                 <p className="text-sm font-semibold">
-                  Krishit
+                  {userName}
                 </p>
 
                 <p className="text-xs text-slate-500">
@@ -88,12 +341,16 @@ function Dashboard() {
       </header>
 
 
-      {/* ================= MAIN ================= */}
+      {/* ==========================================
+          MAIN
+      ========================================== */}
 
       <main className="relative z-10 mx-auto max-w-7xl px-6 py-10">
 
 
-        {/* Welcome */}
+        {/* ==========================================
+            WELCOME
+        ========================================== */}
 
         <section className="mb-10">
 
@@ -102,7 +359,7 @@ function Dashboard() {
           </p>
 
           <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-            Good morning, Krishit 👋
+            Good morning, {userName} 👋
           </h1>
 
           <p className="mt-2 text-slate-400">
@@ -112,16 +369,37 @@ function Dashboard() {
         </section>
 
 
-        {/* ================= QUICK ACTIONS ================= */}
+        {/* ==========================================
+            ERROR
+        ========================================== */}
+
+        {error && (
+
+          <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm text-red-300">
+
+            {error}
+
+          </div>
+
+        )}
+
+
+        {/* ==========================================
+            QUICK ACTIONS
+        ========================================== */}
 
         <section className="grid gap-5 md:grid-cols-2">
 
 
-          {/* Create Meeting */}
+          {/* CREATE MEETING */}
 
-          <Link
-            to="/meeting/create"
-            className="group rounded-2xl border border-indigo-500/20 bg-indigo-600/10 p-6 transition hover:-translate-y-1 hover:bg-indigo-600/15"
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setShowCreateMeeting(true);
+            }}
+            className="group rounded-2xl border border-indigo-500/20 bg-indigo-600/10 p-6 text-left transition hover:-translate-y-1 hover:bg-indigo-600/15"
           >
 
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-2xl">
@@ -133,20 +411,23 @@ function Dashboard() {
             </h2>
 
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
-              Create a meeting and invite your friends or teammates.
+              Create a real meeting and invite your friends or teammates.
             </p>
 
             <div className="mt-5 text-sm font-semibold text-indigo-400">
+
               Create meeting
+
               <span className="ml-2 transition group-hover:ml-3">
                 →
               </span>
+
             </div>
 
-          </Link>
+          </button>
 
 
-          {/* Join Meeting */}
+          {/* JOIN MEETING */}
 
           <Link
             to="/meeting/join"
@@ -166,10 +447,13 @@ function Dashboard() {
             </p>
 
             <div className="mt-5 text-sm font-semibold text-purple-400">
+
               Join meeting
+
               <span className="ml-2 transition group-hover:ml-3">
                 →
               </span>
+
             </div>
 
           </Link>
@@ -177,12 +461,14 @@ function Dashboard() {
         </section>
 
 
-        {/* ================= STATS ================= */}
+        {/* ==========================================
+            STATS
+        ========================================== */}
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
 
-          {/* Stat 1 */}
+          {/* STAT 1 */}
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
 
@@ -191,17 +477,21 @@ function Dashboard() {
             </p>
 
             <p className="mt-3 text-3xl font-bold">
-              24
+
+              {loading
+                ? "..."
+                : meetingsThisMonth}
+
             </p>
 
-            <p className="mt-2 text-xs text-emerald-400">
-              ↑ 12% from last month
+            <p className="mt-2 text-xs text-slate-500">
+              Real meetings from database
             </p>
 
           </div>
 
 
-          {/* Stat 2 */}
+          {/* STAT 2 */}
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
 
@@ -210,17 +500,17 @@ function Dashboard() {
             </p>
 
             <p className="mt-3 text-3xl font-bold">
-              18h
+              0h
             </p>
 
             <p className="mt-2 text-xs text-slate-500">
-              This month
+              We'll calculate this next
             </p>
 
           </div>
 
 
-          {/* Stat 3 */}
+          {/* STAT 3 */}
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
 
@@ -229,7 +519,11 @@ function Dashboard() {
             </p>
 
             <p className="mt-3 text-3xl font-bold">
-              87
+
+              {loading
+                ? "..."
+                : peopleConnected}
+
             </p>
 
             <p className="mt-2 text-xs text-slate-500">
@@ -239,7 +533,7 @@ function Dashboard() {
           </div>
 
 
-          {/* Stat 4 */}
+          {/* STAT 4 */}
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
 
@@ -248,7 +542,11 @@ function Dashboard() {
             </p>
 
             <p className="mt-3 text-3xl font-bold">
-              16
+
+              {loading
+                ? "..."
+                : meetingsHosted}
+
             </p>
 
             <p className="mt-2 text-xs text-indigo-400">
@@ -260,7 +558,9 @@ function Dashboard() {
         </section>
 
 
-        {/* ================= UPCOMING ================= */}
+        {/* ==========================================
+            UPCOMING MEETINGS
+        ========================================== */}
 
         <section className="mt-12">
 
@@ -273,92 +573,120 @@ function Dashboard() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Your scheduled meetings
+                Your real meetings
               </p>
 
             </div>
 
-            <button
-              type="button"
-              className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
-            >
-              View all →
-            </button>
-
           </div>
 
 
-          {/* Meeting 1 */}
+          {/* LOADING */}
 
-          <div className="mb-3 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between">
+          {loading && (
 
-            <div className="flex items-center gap-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-slate-500">
 
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/20 text-xl">
-                📹
-              </div>
-
-              <div>
-
-                <h3 className="font-semibold">
-                  Team Standup
-                </h3>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Today • 10:30 AM • 5 participants
-                </p>
-
-              </div>
+              Loading meetings...
 
             </div>
 
-            <button
-              type="button"
-              className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold hover:bg-indigo-500"
-            >
-              Join
-            </button>
-
-          </div>
+          )}
 
 
-          {/* Meeting 2 */}
+          {/* EMPTY */}
 
-          <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between">
+          {!loading &&
+            meetings.length === 0 && (
 
-            <div className="flex items-center gap-4">
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-10 text-center">
 
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-600/20 text-xl">
-                📹
-              </div>
+                <div className="text-4xl">
+                  📹
+                </div>
 
-              <div>
-
-                <h3 className="font-semibold">
-                  Project Discussion
+                <h3 className="mt-4 text-lg font-semibold">
+                  No meetings yet
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Tomorrow • 2:00 PM • 8 participants
+                <p className="mt-2 text-sm text-slate-500">
+                  Create your first meeting to get started.
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowCreateMeeting(true)
+                  }
+                  className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold hover:bg-indigo-500"
+                >
+                  Create Meeting
+                </button>
 
               </div>
 
-            </div>
+            )}
 
-            <button
-              type="button"
-              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold hover:bg-white/10"
-            >
-              Details
-            </button>
 
-          </div>
+          {/* REAL MEETINGS */}
+
+          {!loading &&
+            meetings.map((meeting) => (
+
+              <div
+                key={meeting.id}
+                className="mb-3 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between"
+              >
+
+                <div className="flex items-center gap-4">
+
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/20 text-xl">
+                    📹
+                  </div>
+
+                  <div>
+
+                    <h3 className="font-semibold">
+                      {meeting.title}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+
+                      Code:{" "}
+
+                      <span className="font-mono text-indigo-400">
+                        {meeting.meeting_code}
+                      </span>
+
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleJoinMeeting(
+                      meeting.meeting_code
+                    )
+                  }
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold hover:bg-indigo-500"
+                >
+                  Join
+                </button>
+
+              </div>
+
+            ))}
 
         </section>
 
 
-        {/* ================= RECENT MEETINGS ================= */}
+        {/* ==========================================
+            RECENT MEETINGS
+        ========================================== */}
 
         <section className="mt-12 pb-12">
 
@@ -369,124 +697,201 @@ function Dashboard() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Your latest meeting activity
+              Your latest real meeting activity
             </p>
 
           </div>
 
 
-          <div className="grid gap-4 md:grid-cols-3">
+          {loading && (
 
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-slate-500">
 
-            {/* Recent 1 */}
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-1 hover:bg-white/10">
-
-              <div className="flex items-center justify-between">
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/20">
-                  📹
-                </div>
-
-                <button
-                  type="button"
-                  className="text-lg text-slate-500 hover:text-white"
-                >
-                  ⋮
-                </button>
-
-              </div>
-
-              <h3 className="mt-5 font-semibold">
-                Frontend Discussion
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Yesterday
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                42 min • 4 people
-              </p>
+              Loading...
 
             </div>
 
+          )}
 
-            {/* Recent 2 */}
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-1 hover:bg-white/10">
+          {!loading &&
+            meetings.length === 0 && (
 
-              <div className="flex items-center justify-between">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-slate-500">
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600/20">
-                  📹
-                </div>
-
-                <button
-                  type="button"
-                  className="text-lg text-slate-500 hover:text-white"
-                >
-                  ⋮
-                </button>
+                No recent meetings.
 
               </div>
 
-              <h3 className="mt-5 font-semibold">
-                Project Meeting
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Aug 20
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                1 hr 12 min • 6 people
-              </p>
-
-            </div>
+            )}
 
 
-            {/* Recent 3 */}
+          {!loading &&
+            meetings.length > 0 && (
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-1 hover:bg-white/10">
+              <div className="grid gap-4 md:grid-cols-3">
 
-              <div className="flex items-center justify-between">
+                {meetings
+                  .slice(0, 3)
+                  .map((meeting) => (
 
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-600/20">
-                  📹
-                </div>
+                    <div
+                      key={meeting.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:-translate-y-1 hover:bg-white/10"
+                    >
 
-                <button
-                  type="button"
-                  className="text-lg text-slate-500 hover:text-white"
-                >
-                  ⋮
-                </button>
+                      <div className="flex items-center justify-between">
+
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600/20">
+                          📹
+                        </div>
+
+                        <span className="text-xs text-slate-500">
+                          #{meeting.id}
+                        </span>
+
+                      </div>
+
+
+                      <h3 className="mt-5 font-semibold">
+                        {meeting.title}
+                      </h3>
+
+
+                      <p className="mt-2 text-sm text-slate-500">
+                        Meeting code:
+                      </p>
+
+
+                      <p className="mt-1 font-mono text-sm text-indigo-400">
+                        {meeting.meeting_code}
+                      </p>
+
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleJoinMeeting(
+                            meeting.meeting_code
+                          )
+                        }
+                        className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 py-2 text-sm font-semibold hover:bg-white/10"
+                      >
+                        Open Meeting
+                      </button>
+
+                    </div>
+
+                  ))}
 
               </div>
 
-              <h3 className="mt-5 font-semibold">
-                Team Planning
-              </h3>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Aug 18
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                35 min • 5 people
-              </p>
-
-            </div>
-
-          </div>
+            )}
 
         </section>
 
       </main>
 
+
+      {/* ==========================================
+          CREATE MEETING MODAL
+      ========================================== */}
+
+      {showCreateMeeting && (
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+
+
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+
+
+            {/* HEADER */}
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <h2 className="text-xl font-bold">
+                  Create Meeting
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Create a real meeting in MeetFlow.
+                </p>
+
+              </div>
+
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreateMeeting(false)
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                ✕
+              </button>
+
+            </div>
+
+
+            {/* FORM */}
+
+            <form
+              onSubmit={handleCreateMeeting}
+              className="mt-6"
+            >
+
+              <label className="text-sm font-medium text-slate-300">
+                Meeting title
+              </label>
+
+
+              <input
+                type="text"
+                value={meetingTitle}
+                onChange={(e) =>
+                  setMeetingTitle(e.target.value)
+                }
+                placeholder="e.g. Team Discussion"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                autoFocus
+              />
+
+
+              {error && (
+
+                <p className="mt-2 text-sm text-red-400">
+                  {error}
+                </p>
+
+              )}
+
+
+              <button
+                type="submit"
+                disabled={creatingMeeting}
+                className="mt-5 w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+
+                {creatingMeeting
+                  ? "Creating Meeting..."
+                  : "Create Meeting"}
+
+              </button>
+
+            </form>
+
+          </div>
+
+        </div>
+
+      )}
+
     </div>
+
   );
 }
+
 
 export default Dashboard;
